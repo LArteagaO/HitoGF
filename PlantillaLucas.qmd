@@ -1,0 +1,230 @@
+---
+title: "Administración de riesgos financieros Colbun S.A."
+author: "Lucas Arteaga"
+format: html
+editor: visual
+---
+
+```{r configuraciones}
+#| message: false
+#| echo: false
+# Esto ya debiera estar cargado en el proyecto en posit.cloud
+# devtools::install_github("business-science/tidyquant")
+# Loads tidyquant, lubridate, xts, quantmod, TTR, and PerformanceAnalytics
+library(tidyverse)
+library(tidyquant)  
+```
+
+## Descripción Activo y Contexto (Hito 1)
+
+Fecha de entrega: Jueves 28 de Septiembre 23:59.
+
+### Definición
+
+El activo a estudiar es Colbún, empresa de origen Chileno, la cual se dedica a la generación y distribución de energía eléctrica, al día de hoy cuentan con 27 centrales en Chile y en Perú, con una capacidad instalada aproximadamente de 4000 MW. La energía que genera la empresa la coloca en el tercer puesto con un 16% del mercado nacional, esto es medido con la capacidad energética que aportan las centrales de Colbún al SEN(Sistema Eléctrico Nacional), esto lo logran a través de generacion de energia hidraulica y solar principalmente. El crecimiento que ha tenido Chile en los últimos 20 años ha hecho necesario que la generación de energía aumente considerablemente para poder suplir la demanda requerida por el crecimiento. Es debido a esto que empresas como Colbún han desarrollado departamentos que desarrollan proyectos de energía renovable con la intención y compromiso de suplir la demanda de energía, pero sin dañar el medio ambiente. Segun el paper: "Chile: Paving the way for sustaintable energy planning"
+
+```{r ETL}
+#| echo: false
+# Alternativamente Use FANG data set
+# data("FANG") 
+end <- as_date("2022-12-31")
+# Get AAPL and AMZN Stock Prices
+# AAPL <- tq_get("AAPL", get = "stock.prices", from = "2015-09-01", to = end)
+# AMZN <- tq_get("AMZN", get = "stock.prices", from = "2000-01-01", to = end)
+CLP=X <- tq_get("CLP=X", get = "stock.prices", from = "2000-01-01", to = end)
+CL=F <- tq_get("CL=F", get = "stock.prices", from = "2000-01-01", to = end)
+ENELCHILE <- tq_get("ENELCHILE.SN", get = "stock.prices", from = "2000-01-01", to = end)
+COLBUN <- tq_get("COLBUN.SN", get = "stock.prices", from = "2000-01-01", to = end)
+CL <- rbind(CLP=X, CL=F, ENELCHILE)
+```
+
+El activo CMPC tiene un valor promedio para el intervalo igual a `r round(mean(CMPC$close),digits=0)`
+
+```{r COLBUNline}
+#| echo: false
+COLBUN %>%
+    ggplot(aes(x = date, y = close)) +
+    geom_line() +
+    labs(title = "COLBUN Line Chart", y = "Closing Price", x = "") + 
+    theme_tq() +
+  geom_hline(yintercept=mean(COLBUN$close), linetype="dashed", color = "red")
+```
+
+```{r COLBUNcandle}
+#| warning: false
+COLBUN %>%
+    ggplot(aes(x = date, y = close)) +
+    geom_candlestick(aes(open = open, high = high, low = low, close = close)) +
+    labs(title = "COLBUN Candlestick Chart", y = "Closing Price", x = "") +
+    theme_tq()
+```
+
+### Motivación
+
+Colbún es una empresa la cual tiene una gran presencia a nivel nacional, siendo reconocida por su propósito y valores, los cuales hablan de la importancia de la transición energética a fuentes renovables, desarrollando proyectos a largo plazo en busca de un mundo más sustentable. Por otro lado, Colbún se caracteriza por generar un compromiso con sus clientes haciéndose parte de sus metas y objetivos, y de esta manera buscar el crecimiento de manera íntegra. Por último, busca que todo desarrollo energético que trabajen sea y venga en equilibrio con el planeta. Un ejemplo de estas positivas iniciativas, es la central Nehuenco, en la cual la empresa realizará un proyecto con el cual desean producir hidrógeno verde, para la central termoeléctrica misma. Este será el primer proyecto de esta envergadura de la matriz y demuestra el interés que tienen con avanzar en busca de la sustentabilidad.
+
+### Contexto
+
+El precio del dólar es una variable que afecta directamente y de distintas formas a Colbún, esto debido a que cuando se necesita equipo nuevo hay que importarlo desde el extranjero. En este caso, uno de los activos es el parque fotovoltaico de Machicura, el cual funciona con una gran cantidad de paneles solares, los cuales tienen que ser importados desde fuera de Chile, y por lo tanto un aumento en el precio del dólar, incurre en un aumento en los costos de infraestructura del activo.
+
+Otro variable que genera un desequilibrio en Colbún es la empresa Enel, la cual es una competencia directa en la generacion y distribucion de energia electrica, entre los factores que esta competencia genera, primero es el impacto en los precios, ya que como son dos de los mayoristas en Chile, un aumento en sus costos significa un aumento en el mercado. Otro factor de Enel, es que ambas empresas han desarrollado un plan de largo plazo dirigido a el desarrollo de la sustentabilidad del país, y el último es que la competencia genera un aumento en el nivel de infraestructura, ya que entre las dos representan un porcentaje importante del mercado. En este caso el activo de Colbún es la cantidad de Watts generados, el cual se comercializa, por lo tanto si el precio del Watts de Enel se ve disminuido, el precio del Watts de Colbún también tendrá una disminución en su venta.
+
+El tercer activo, el cual es una variable que influye es el precio del barril de petróleo, el cual aunque pareciera que no Colbún no lo utiliza para la generacion de energia, si es importante para la venta de la producción de las termoeléctricas, esto debido a que un aumento en el precio del petróleo, incurre en un alza en el valor de las energías tradicionales, las cuales funcionan en base a recursos fósiles. Por lo que cuando el petróleo sube, el precio de la energía tradicional aumenta y por lo tanto la demanda por energía proveniente de Colbún aumenta.
+
+\
+
+```{r context}
+#| warning: false
+#| echo: false
+start <- end - weeks(6)
+
+CL %>%
+    filter(date >= start - days(2 * 15)) %>%
+    ggplot(aes(x = date, y = close, group = symbol)) +
+    geom_candlestick(aes(open = open, high = high, low = low, close = close)) +
+    geom_ma(ma_fun = SMA, n = 15, color = "darkblue", size = 1) +
+    labs(title = "CL Candlestick Chart", 
+         subtitle = "Experimenting with Mulitple Stocks",
+         y = "Closing Price", x = "") + 
+    coord_x_date(xlim = c(start, end)) +
+    facet_wrap(~ symbol, ncol = 2, scale = "free_y") +
+    theme_tq()
+```
+
+Ejemplos:
+
+::: columns
+::: {.column width="50%"}
+![](photos/Captura%20de%20pantalla%202023-08-22%20102815.png){fig-align="left" width="261"}
+:::
+
+::: {.column width="50%"}
+![](photos/Captura%20de%20pantalla%202023-08-22%20103005.png){fig-align="right" width="254"}
+:::
+:::
+
+![](photos/Captura%20de%20pantalla%202023-08-22%20103037.png){fig-align="left" width="256"}
+
+### Tareas Semana 4
+
+-   Utilizar otros ejemplos de visualización: https://business-science.github.io/tidyquant/articles/TQ04-charting-with-tidyquant.html
+-   ¿Para que sirven las siguientes líneas en los bloques de código?
+
+```         
+#| warning: false
+#| echo: false
+```
+
+-   Definir activos en base a cada una de las [industrias definidas](https://uandes.instructure.com/courses/28266/pages/proyecto-del-curso): Inmobiliaria, Banca, Energía
+-   Buscar referencias científicas en la literatura para dar contexto al análisis
+
+### Análisis de Largo Plazo
+
+#### Caracterización deuda (Aplicación cap. 15)
+
+Las acciones de Colbún S.A. se transan en la Bolsa de Comercio de Santiago y en la Bolsa Electrónica de Chile. Existe un tipo de acción (nemotécnico: COLBUN) y para tener derecho a voz y voto en las juntas de accionistas sólo deben estar inscritos en el registro de accionistas de la sociedad.
+
+El perfil de endeudamiento sólido es aquel que evalúa la relación la proporción de la deuda con su capital, si el perfil es positivo indica que la empresa es capaz de cumplir con sus obligaciones de deuda, sin la necesidad de parar la producción e inversión. La deuda que mantiene la empresa sobre el EBITDA es de 3.0x, esto es un estimado, ya que la empresa logró reducirla después de los problemas del aumento del gas natural en 2021. Se estima que durante el 2023-2025 el retorno del EBITDA sea de US 650 millones y la deuda seguirá por debajo del 3.0x. 
+
+La empresa y sus subsidiarias, tienen sus activos invertidos dependiendo su liquidez en el siguiente orden. El primero instrumento son los fondos mutuos, lo cual es el de mayor liquidez, los cuales se encuentran en la cuenta "Otros instrumentos líquidos", los cuales son de renta fija y están en pesos, euros y dólares de un nivel de riesgo bajo. El segundo los depósitos a plazas con un vencimiento menor a 3 meses, clasificado en la cuenta "Depósitos a Plazo".   
+
+Dentro de los otros activos financieros de menor liquidez aparecen, los depósitos a plazo con vencimiento menor a 6 meses. Luego están los instrumentos derivados, los cuales se especifican más adelante. 
+
+Parte importante de su capital lo destinan a la inversión en nuevos activos propios como lo son la compra de terrenos, I+D, la creación de nuevas plantas hidroeléctricas y de paneles solares y más inversiones para aumentar su crecimiento.
+
+Ejemplo de un fondo mutuo como activo a analizar:
+
+![](photos/Captura%20de%20pantalla%202023-08-22%20112340.png){fig-align="center"}
+
+#### Caracterización de emisiones históricas (Aplicación cap. 20)
+
+Uno de los bonos emitidos por Colbún fue emitido el 18 de octubre de 2021, este fue el primer bono "verde" de la empresa en el marco de los bonos internacionales, el cual fue por el monto de US600 millones, con el fin de apoyar el crecimiento y sustentabilidad por medio de los proyectos de energías renovables.  Lo anterior tiene una fecha de vencimiento en el año 2032 y fueron colocados a un 3.15% como tasa cupón  en una operación que fue estructurada conforme a la regulación de la Regla 144A y la Regulación S de la Securities and Exchange Commission de Estados Unidos.
+
+![](photos/Captura%20de%20pantalla%202023-08-22%20111527.png){fig-align="center"}
+
+#### Relación con activos derivados
+
+Colbún es una empresa que protege su exposición a riesgos utilizando instrumentos derivados, de esta forma busca protegerse de la variación de la tasa de interés, los tipos de cambios y los precios en los combustibles. Para las tasa de interés utilizan los swaps de tasa de interés con el fin de fijar o limitar las tasas variables, por otro lado los derivados de moneda los utilizan para fijar la tasa del cambio al dólar con respecto tanto al peso chileno, como a la unidad de fomento, euro, productos de inversiones, entre otros. El instrumento utilizado son los Forwards y Cross Currency Swaps principalmente. Por último, para protegerse en los precios de los combustibles utilizan las Opciones y los Forwards, con esto buscan mitigar el riesgo en la variación de los precios en los costos y ventas de la energía eléctrica.
+
+### Reporte grupal
+
+El objetivo del portafolio es de largo plazo, por lo que se estudiará a más de un año,  buscando retornos altos en el largo plazo y teniendo presente el riesgo que implica esto. El portafolio es de renta variable, por lo que siempre se tendrá que considerar el riesgo que este tipo de inversiones implica.
+
+Para poder obtener las ponderaciones del portafolio, se debe realizar un análisis a cada activo por invertir, donde se consideraron los Beta de cada acción y las industrias pertenecientes a cada activo.
+
+Banco Bci está presente en la industria bancaria donde a grandes rasgos las inversiones están asociadas al manejo de carteras, en donde se analizará específicamente la inversión al Fondo Mutuo de Acciones Globales por parte del grupo Bci. Este fondo es de moneda extranjera el cual invierte principalmente en cuotas del subfondo extranjero, domiciliado en Luxemburgo, denominado "BCI AM SICAV - Global EquityFund".
+
+Colbún es la tercera empresa más grande en el sector eléctrico chileno y ha tenido un aumento en activos en el último año. La empresa ha ido en un crecimiento constante desde que cambió de controlador, siendo dirigida principalmente por la familia Matte, bajo la empresa Minera Valparaíso. Los últimos años ha presentado un plan de largo plazo para generar en gran cantidad energía sustentable, con el fin de alinearse con las necesidades actuales. Aunque actualmente presenta un mes de rentabilidad negativa, su anualidad en los dos últimos años, es de alrededor de un 40%, lo que lo hace una empresa interesante para invertir, considerando un riesgo alto.
+
+Cencosud está invirtiendo fuertemente en Estados Unidos, con una promesa de abrir una nueva tienda cada 33 días. Por lo tanto, las ganancias que obtenga la empresa serán a largo plazo cuando estas comiencen a operar, entonces se espera que el valor de la acción continúe creciendo moderadamente como ha sido a lo largo del año.
+
+Según las estadísticas de Yahoo Finance, los betas de los activos tienen las siguientes cifras; 0.37 COLBÚN, 0.18 BCI, 0.55 CENCOSUD.
+
+|          |       |
+|----------|-------|
+| Activo   | Betas |
+| CENCOSUD | 0.55  |
+| COLBUN   | 0.37  |
+| BCI      | 0.18  |
+
+Además, los retorno anuales de estos respectivamente son; 46.48% para COLBÚN, 11.9% para BCI y 29.97% para CENCOSUD.
+
+|          |              |
+|----------|--------------|
+| Activo   | Rentabilidad |
+| CENCOSUD | 29.97%       |
+| COLBUN   | 46.48%       |
+| BCI      | 11.9%        |
+
+A este portafolio se le invertirá 100 millones de pesos chilenos con las siguientes ponderaciones:
+
+|          |             |
+|----------|-------------|
+| Activo   | Ponderación |
+| CENCOSUD | 30%         |
+| COLBUN   | 50%         |
+| BCI      | 20%         |
+
+Este conjunto de inversiones, diseñado para personas que prefieren un nivel moderadamente alto de seguridad financiera, asigna el 30% de los recursos al activo más arriesgado, que tiene una mayor sensibilidad al riesgo (medida por su beta). Hemos asignado un 20% a BCI, ya que esperamos que tenga una volatilidad limitada debido a su rentabilidad moderada y su baja sensibilidad al riesgo. Además, hemos dado prioridad a los activos que han experimentado un mayor aumento en su valor durante el año, asignándoles una mayor ponderación en la cartera. Finalmente se ponderó un 50% de Colbún para poder obtener el retorno alto esperado, debido a que es una empresa que muestra un beta de 0.37, el cual no lo hace tan riesgosa y tiene los retornos esperados más altos.
+
+\
+
+```{r}
+#| echo: false
+# Alternativamente Use FANG data set
+# data("FANG") 
+end <- as_date("2022-12-31")
+# Get AAPL and AMZN Stock Prices
+# AAPL <- tq_get("AAPL", get = "stock.prices", from = "2015-09-01", to = end)
+# AMZN <- tq_get("AMZN", get = "stock.prices", from = "2000-01-01", to = end)
+CENCOSUD <- tq_get("CENCOSUD.SN", get = "stock.prices", from = "2000-01-01", to = end)
+BCI <- tq_get("BCI.SN", get = "stock.prices", from = "2000-01-01", to = end)
+COLBUN <- tq_get("COLBUN.SN", get = "stock.prices", from = "2000-01-01", to = end)
+
+# Cargar las bibliotecas necesarias
+library(tidyquant)
+library(ggplot2)
+
+# Definir las fechas de inicio y fin para el último año
+end_date <- Sys.Date()
+start_date <- end_date - years(1)
+
+# Filtrar datos para las acciones de BCI, COBLUN y CENCOSUD
+selected_stocks <- c("BCI.SN", "COLBUN.SN", "CENCOSUD.SN")
+stock_data <- tq_get(selected_stocks, from = start_date, to = end_date)
+
+# Asegurarse de que "symbol" sea una variable de factor
+stock_data$symbol <- factor(stock_data$symbol)
+
+# Crear gráficos de velas para las acciones seleccionadas
+stock_data %>%
+  ggplot(aes(x = date, y = close, group = symbol)) +
+  geom_candlestick(aes(open = open, high = high, low = low, close = close)) +
+  labs(title = "Candlestick Chart",
+       subtitle = "Stock Price Movement (Last Year)",
+       y = "Closing Price",
+       x = "Date") +
+  coord_x_date(xlim = c(start_date, end_date)) +
+  facet_wrap(~ symbol, ncol = 1, scale = "free_y") +
+  theme_tq()
+```
