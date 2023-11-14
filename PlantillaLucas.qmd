@@ -228,3 +228,178 @@ stock_data %>%
   facet_wrap(~ symbol, ncol = 1, scale = "free_y") +
   theme_tq()
 ```
+{r}
+#| echo: false
+# Alternativamente Use FANG data set
+# data("FANG") 
+end <- as_date("2022-12-31")
+# Get AAPL and AMZN Stock Prices
+# AAPL <- tq_get("AAPL", get = "stock.prices", from = "2015-09-01", to = end)
+# AMZN <- tq_get("AMZN", get = "stock.prices", from = "2000-01-01", to = end)
+CENCOSUD <- tq_get("CENCOSUD.SN", get = "stock.prices", from = "2000-01-01", to = end)
+BCI <- tq_get("BCI.SN", get = "stock.prices", from = "2000-01-01", to = end)
+COLBUN <- tq_get("COLBUN.SN", get = "stock.prices", from = "2000-01-01", to = end)
+
+# Cargar las bibliotecas necesarias
+library(tidyquant)
+library(ggplot2)
+
+# Definir las fechas de inicio y fin para el último año
+end_date <- Sys.Date()
+start_date <- end_date - years(1)
+
+# Filtrar datos para las acciones de BCI, COBLUN y CENCOSUD
+selected_stocks <- c("BCI.SN", "COLBUN.SN", "CENCOSUD.SN")
+stock_data <- tq_get(selected_stocks, from = start_date, to = end_date)
+
+# Asegurarse de que "symbol" sea una variable de factor
+stock_data$symbol <- factor(stock_data$symbol)
+
+# Crear gráficos de velas para las acciones seleccionadas
+stock_data %>%
+  ggplot(aes(x = date, y = close, group = symbol)) +
+  geom_candlestick(aes(open = open, high = high, low = low, close = close)) +
+  labs(title = "Candlestick Chart",
+       subtitle = "Stock Price Movement (Last Year)",
+       y = "Closing Price",
+       x = "Date") +
+  coord_x_date(xlim = c(start_date, end_date)) +
+  facet_wrap(~ symbol, ncol = 1, scale = "free_y") +
+  theme_tq()
+
+Valoración opciones aplicada
+
+Tome en consideración el modelo continuio de Black and Scholes:
+
+$$C(S,t)=S\cdot\Phi(d_1)-K\exp(-R\cdot t)\cdot\Phi(d_2)$$
+
+donde $d_1=\frac{\log\frac{S}{K}+\left(R+\frac{\sigma^2}{2}\right)\cdot t}{\sqrt{\sigma^2\cdot t}}$ y $d_2=d_1-\sqrt{\sigma^2\cdot t}$.
+
+{python}
+
+# Parámetros de test
+K = 100
+r = 0.02
+sigma = 0.2 #volatilidad de la accion subyacente
+T = 0.5 #tiempo hasta la expiracion de la accion en años
+S = 102
+# Resultado esperado CALL
+# 7.28815118277163
+
+Los parametros fueron obtenidos de la bolsa de Santiago, de un excel donde se calculo la volatilidad de los rendimientos con informacion de Yahoo finance y algunos datos son supuestos necesarios para la realizacion del estudio
+
+{python}
+# Parámetros de Colbun
+K = 100
+r = 0.035
+sigma = 0.27217033
+T = 0.7
+S = 125.1
+
+{python}
+import numpy as np
+from scipy.stats import norm
+
+N = norm.cdf
+
+def BS_CALL(S, K, T, r, sigma):
+    d1 = (np.log(S/K) + (r + sigma**2/2)*T) / (sigma*np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    return S * N(d1) - K * np.exp(-r*T)* N(d2)
+
+def BS_PUT(S, K, T, r, sigma):
+    d1 = (np.log(S/K) + (r + sigma**2/2)*T) / (sigma*np.sqrt(T))
+    d2 = d1 - sigma* np.sqrt(T)
+    return K*np.exp(-r*T)*N(-d2) - S*N(-d1)
+
+{python}
+print(BS_CALL(S, K, T, r, sigma))
+print(BS_PUT(S, K, T, r, sigma))
+
+SEGUNDO MODELO DE VALORIZACION
+
+La Valoración con Simulacion de Montecarlo
+
+Es una propuesta de valoracion dinamica y flexible, capaz de valorar cualquier opcion y las fuentes de incertidumbre que la rodean, su problema es el alto costo matematico que implica por las simulaciones, pero actualmente es llevadero gracias a que se ha logrado automatizar en distintas plataformas. Su resultado es tan positivo, que se espera que en algunos años supere a otros metodos de valoracion.
+
+Este metodo utiliza las simulaciones para realizar varias prediciones de posibles precios estocasticos del activo subyacente, como se menciono anteriormente, las simulaciones implican un alto costo computacional,pero aun asi logra obtener los datos para las opciones que no se pueden resolver de manera tradicional o analitica.
+
+Alonso, S. (2007). Real Options and Monte Carlo Simulation. Universia Business Review, 52-62
+
+{python}
+import numpy as np
+from scipy.stats import norm
+
+def monte_carlo_option_pricing(S, K, T, r, sigma, option_type='call', n_simulations=10000):
+    """
+    Calcula el precio de una opción utilizando simulación Monte Carlo.
+
+    :param S: Precio actual de la acción subyacente
+    :param K: Precio de ejercicio de la opción
+    :param T: Tiempo hasta la expiración de la opción en años
+    :param r: Tasa de interés libre de riesgo (anual)
+    :param sigma: Volatilidad de la acción subyacente (anual)
+    :param option_type: Tipo de opción ('call' o 'put')
+    :param n_simulations: Número de simulaciones Monte Carlo
+    :return: Precio de la opción
+    """
+
+    dt = T / 365.0  # Dividir el tiempo en días
+    n = int(T * 365)  # Número de pasos en las simulaciones
+
+    option_prices = np.zeros(n_simulations)
+
+    for i in range(n_simulations):
+        # Generar trayectoria de precios
+        z = np.random.standard_normal(n)
+        prices = S * np.exp(np.cumsum((r - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * z))
+
+        if option_type == 'call':
+            option_prices[i] = max(0, prices[-1] - K)
+        else:
+            option_prices[i] = max(0, K - prices[-1])
+
+    option_price = np.exp(-r * T) * np.mean(option_prices)
+
+    return option_price
+
+
+# Calcular el valor de una opción call
+call_price = monte_carlo_option_pricing(S, K, T, r, sigma, option_type='call')
+print("Valor de la opción call:", call_price)
+
+# Calcular el valor de una opción put
+put_price = monte_carlo_option_pricing(S, K, T, r, sigma, option_type='put')
+print("Valor de la opción put:", put_price)
+
+Analis de Black-Scholes vs Monte Carlos
+
+Para una correcta comparacion de los modelos, se evaluaron con los mismos parametros, de esta manera se llegaron a resultados los cuales se discutiran a continuacion. Para el modelo de Black-Scholes en la opcion call se llego a un valor de 29.27 y para la opcion put 1.74, mientras que para la valoracion de opciones por medio de Monte Carlos se llegaron a resultados de opcion de call 27.82 y de opcion put de 1.01. Los resultados son distintos, esto se debe las caracteristicas de cada modelo, mientras Black Scholes funciona con supuestos de precios simplificados, mientras que los de Monte Carlos se utilizan multiples simulaciones estocasticas de sus precios. Siguendo con la diferencia de los valores, cabe recordar que el modelo de Black Scholes no aplica volatilidad en su modelo, mas bien utiliza tanto la volatilidad constante como la tasa liibre de riesgo, por el otro lado Monte Carlos utiliza, como se menciono anteriormente multiples simulaciones de precios buscando un promedio para determinar el precio call y put de la accion. Debido a esto es que los valores respectivos son distintos entre si, pero no lejanos, son valores relativamente parecidos y es debido a esto que se puede decir que ambos modelos funcionan, pero no se puede garantizar que uno es mejor que otro, ya que eso dependera de otros supuestos que habra que evaluar con mas tiempo.
+
+Parte Grupal
+
+Se eligio el primer caso propuesto "Administración de capital de trabajo de Kiefer Manufacturing", Las preguntas a responder son las siguentes:
+
+Use las cifras proporcionadas para elaborar un presupuesto de efectivo y el plan financiero a corto plazo.
+
+Reelabore el presupuesto de efectivo y el plan financiero a corto plazo, suponiendo que Kiefer cambia a un saldo mínimo de efectivo de 70000 dólares.
+
+Calcule nuevamente el presupuesto de ventas suponiendo un índice de crecimiento de 5% y 11% de las ventas. Suponga que el objetivo es contar con un saldo de efectivo de 900000 dólares.
+
+Suponiendo que la compañía mantiene su saldo de efectivo deseado en 90000 dólares, ¿que tasa de crecimiento de las ventas daría por resultado que no hubiera necesidad de pedir financiamiento a corto plazo? Para responder esta pregunta es posible que necesite preparar una hoja de cálculo y usar la función "Solver" de Excel.
+
+Por temas de orden, se respondera cada pregunta en una celda distinta a continuacion.
+
+Respuesta 1
+
+Se espera un aumento de 8% en las ventas de cada trimestre, y como las ventas del primer trimestre actual fueron 735000, lo que multiplicado por el 8%. T1 A 2= 7350001.08=793800 . Luego las cuentas por cobrar cobrar serán iguales al pronóstico de ventas multiplicado por el periodo de cuentas por cobrar, luego se resta el porcentaje "incobrable" Cuentas por cobrar=(79380057365)- (10%793800)=124446. Por el lado del forecast de suministros se calcula como Suministros T1 A2=50% de ventas proyectadas para T2=50% de 793800=396900. Pagos a proveedores, la empresa se demora en promedio 53 días en pagarle a sus proveedores, por lo tanto la ecuación queda de la siguiente manera Pagos a proveedores T1 A2=53365793800= 115140. Siguiendo con los costos que se proyectan, los cuales se definieron como el 25% del forecast de ventas, por lo que corresponde a Costos=25%*793800= 198450. El flujo de efectivo neto para T1 A2 va a ser igual a las ventas proyectadas menos el pagos a proveedores menos los costos Flujo de Efectivo Neto= 793800-115140-198450=480210. Con todo lo anterior podemos calcular el saldo de efectivo al final de T1A2, el cual se define como Saldo de efectivo al final de T1A2=1495000+480210=1975210 De forma más ordenada se procederá a dejar una tabla con la información de los cálculos para cada uno de los trimestres.
+
+Respuesta 2
+
+Realizar este cambio en el saldo mínimo de efectivo solo implica que la empresa va a reducir su "colchón" económico, con lo que estaría dispuesto a poner mayor cantidad de efectivo en circulación para conseguir sus objetivos y poder suplir la demanda solicitada. Como se puede ver en la tabla anterior, tanto para 90000 dólares como para los 70000 dólares no será necesario, ya que el flujo mínimo está muy por encima del mínimo, debido a esto Kiefer no presentará problemas económicos según sus proyecciones.
+
+Respuesta 3
+
+Para calcular nuevamente el presupuesto de ventas con un crecimiento de 5% y 11% en las ventas con respecto al trimestre del año anterior y como dice manteniendo el saldo mínimo en lo que Adam propuso, lo que es un valor de 90000. A continuación se encontrará una tabla resumen de los resultado:
+
+Por lo que se puede ver en la tabla, habría problemas para suplir en ambos casos las proyecciones de ventas del trimestre 1 siguiente, debido a esto se tendrá que buscar alguna solución la cual puede ser desde evaluar opciones de inversiones para suplir el excedente, estudiar la demanda con un caso de sensibilidad, negociar pagos con los proveedores, al igual de negociar los costos con los mismos, optimizar la logística para reducir costos, entre otras cosas.
